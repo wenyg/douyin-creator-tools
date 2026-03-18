@@ -1,6 +1,7 @@
 import {
   getEffectiveTimeout,
   logReplyFilterDebug,
+  normalizeText,
   normalizeUsername,
   summarizeCommentsForLog
 } from "./common.mjs";
@@ -16,12 +17,71 @@ import {
 } from "./comment-ops.mjs";
 import { extractCommentSnapshot } from "./comment-snapshot.mjs";
 
-function matchReplyPlan(comment, replyPlans, processedPlanIds) {
+function buildVisibleUsernameCounts(snapshot, processedSignatures) {
+  const counts = new Map();
+
+  for (const comment of snapshot) {
+    if (!comment?.signature || processedSignatures.has(comment.signature)) {
+      continue;
+    }
+
+    const username = normalizeUsername(comment.username).toLowerCase();
+    if (!username) {
+      continue;
+    }
+
+    counts.set(username, (counts.get(username) || 0) + 1);
+  }
+
+  return counts;
+}
+
+function countRemainingPlansForUsername(replyPlans, processedPlanIds, username) {
+  let count = 0;
+
+  for (const plan of replyPlans) {
+    if (processedPlanIds.has(plan.id)) {
+      continue;
+    }
+
+    if (normalizeUsername(plan.username).toLowerCase() !== username) {
+      continue;
+    }
+
+    count += 1;
+  }
+
+  return count;
+}
+
+function commentTextsMatch(left, right) {
+  const normalizedLeft = normalizeText(left);
+  const normalizedRight = normalizeText(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  return (
+    normalizedLeft === normalizedRight ||
+    normalizedLeft.includes(normalizedRight) ||
+    normalizedRight.includes(normalizedLeft)
+  );
+}
+
+function matchReplyPlan(comment, replyPlans, processedPlanIds, visibleUsernameCounts) {
   if (!Array.isArray(replyPlans) || replyPlans.length === 0) {
     return null;
   }
 
   const commentUsername = normalizeUsername(comment.username).toLowerCase();
+  const remainingPlanCount = countRemainingPlansForUsername(
+    replyPlans,
+    processedPlanIds,
+    commentUsername
+  );
+  const visibleCommentCount = visibleUsernameCounts.get(commentUsername) || 0;
+  const requireCommentMatch = remainingPlanCount > 1 || visibleCommentCount > 1;
 
   for (const plan of replyPlans) {
     if (processedPlanIds.has(plan.id)) {
@@ -36,7 +96,16 @@ function matchReplyPlan(comment, replyPlans, processedPlanIds) {
       continue;
     }
 
-    return plan;
+    if (requireCommentMatch && !commentTextsMatch(plan.commentText, comment.commentText)) {
+      continue;
+    }
+
+    return {
+      plan,
+      matchMode: requireCommentMatch ? "username_comment" : "username_only",
+      remainingPlanCount,
+      visibleCommentCount
+    };
   }
 
   return null;
@@ -47,20 +116,30 @@ function getNextReplyTarget(snapshot, options, processedSignatures, processedPla
     return null;
   }
 
+  const visibleUsernameCounts = buildVisibleUsernameCounts(snapshot, processedSignatures);
+
   for (const comment of snapshot) {
     if (!comment.signature || processedSignatures.has(comment.signature)) {
       continue;
     }
 
-    const plan = matchReplyPlan(comment, options.replyPlans, processedPlanIds);
-    if (!plan) {
+    const matchedPlan = matchReplyPlan(
+      comment,
+      options.replyPlans,
+      processedPlanIds,
+      visibleUsernameCounts
+    );
+    if (!matchedPlan) {
       continue;
     }
 
     return {
       comment,
-      plan,
-      replyMessage: plan.replyMessage
+      plan: matchedPlan.plan,
+      replyMessage: matchedPlan.plan.replyMessage,
+      matchMode: matchedPlan.matchMode,
+      remainingPlanCount: matchedPlan.remainingPlanCount,
+      visibleCommentCount: matchedPlan.visibleCommentCount
     };
   }
 
@@ -440,12 +519,22 @@ export async function replyToComments(page, options) {
     );
 
     if (nextTarget) {
-      const { comment: nextComment, plan, replyMessage } = nextTarget;
+      const {
+        comment: nextComment,
+        plan,
+        replyMessage,
+        matchMode,
+        remainingPlanCount,
+        visibleCommentCount
+      } = nextTarget;
       logReplyFilterDebug("matched reply target", {
         username: nextComment.username,
         commentText: nextComment.commentText,
         publishText: nextComment.publishText,
-        replyPlanId: plan?.id ?? null
+        replyPlanId: plan?.id ?? null,
+        matchMode,
+        remainingPlanCount,
+        visibleCommentCount
       });
 
       const commentLocator = page

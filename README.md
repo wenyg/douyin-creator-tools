@@ -118,7 +118,7 @@ npm run comments:reply -- comments-output/unreplied-comments.json
 
 - `--dry-run`：只输入回复内容，不点发送
 - `--keep-open`：流程结束后保留浏览器，按 Enter 再关闭
-- 当前回复匹配规则按 `username` 依次消耗页面里的未回复评论
+- 默认按 `username` 匹配；只有同一用户名在当前待处理或当前可见评论里出现多条时，才额外校验 `commentText`
 
 ## 发布文章
 
