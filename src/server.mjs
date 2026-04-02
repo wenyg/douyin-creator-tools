@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import express from "express";
 import { getDb } from "./lib/db.mjs";
+import {
+  getTailBroadcaster,
+  readHistory,
+  resolveOpenclawSessionFile
+} from "./lib/openclaw-thinking-feed.mjs";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,6 +77,91 @@ app.get("/api/wordcloud", (_req, res) => {
   }
 });
 
+// ── OpenClaw「思考」实时流（JSONL session）────────────────────
+
+/**
+ * @param {import('express').Request} req
+ */
+function thinkingSessionOptions(req) {
+  const sessionKey =
+    typeof req.query.sessionKey === "string" ? req.query.sessionKey : undefined;
+  const sessionsPath =
+    typeof req.query.sessionsPath === "string" ? req.query.sessionsPath : undefined;
+  return resolveOpenclawSessionFile({ sessionKey, sessionsPath });
+}
+
+app.get("/api/openclaw-thinking/status", (req, res) => {
+  const resolved = thinkingSessionOptions(req);
+  if (resolved.error) {
+    res.status(400).json(resolved);
+    return;
+  }
+  let exists = false;
+  try {
+    fs.accessSync(resolved.sessionFile);
+    exists = true;
+  } catch {
+    exists = false;
+  }
+  res.json({ ...resolved, exists });
+});
+
+app.get("/api/openclaw-thinking/history", async (req, res) => {
+  const resolved = thinkingSessionOptions(req);
+  if (resolved.error) {
+    res.status(400).json(resolved);
+    return;
+  }
+  const limit = Math.min(
+    2000,
+    Math.max(1, Number(req.query.limit) || 300)
+  );
+  try {
+    const events = await readHistory(resolved.sessionFile, { limit });
+    res.json({ ...resolved, count: events.length, events });
+  } catch (err) {
+    res.status(500).json({
+      error: "history_read_failed",
+      message: err instanceof Error ? err.message : String(err)
+    });
+  }
+});
+
+app.get("/api/openclaw-thinking/stream", (req, res) => {
+  const resolved = thinkingSessionOptions(req);
+  if (resolved.error) {
+    res.status(400).json(resolved);
+    return;
+  }
+  try {
+    fs.accessSync(resolved.sessionFile);
+  } catch {
+    res.status(404).json({
+      error: "session_file_missing",
+      sessionFile: resolved.sessionFile
+    });
+    return;
+  }
+
+  const fromEnd = req.query.fromStart !== "1";
+
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  if (typeof res.flushHeaders === "function") {
+    res.flushHeaders();
+  }
+
+  res.write(`event: ready\ndata: ${JSON.stringify({ sessionFile: resolved.sessionFile })}\n\n`);
+
+  const broadcaster = getTailBroadcaster(resolved.sessionFile);
+  broadcaster.addClient(res, { fromEnd });
+
+  req.on("close", () => {
+    broadcaster.removeClient(res);
+  });
+});
+
 // ── HTML ─────────────────────────────────────────────────────
 
 const HTML = `<!DOCTYPE html>
@@ -79,7 +169,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>阿里虾的日记</title>
+<title>评论终端 · OpenClaw 思考流</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -330,14 +420,136 @@ const HTML = `<!DOCTYPE html>
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
   .blink { animation: blink 1.2s infinite; }
 
-  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+
+  /* ── 主 Tab：评论 / 思考流 ── */
+  .tab-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .tab-bar {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--dim);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 4px;
+    padding: 12px 28px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, text-shadow 0.15s;
+  }
+  .tab-btn:hover { color: var(--cyan); }
+  .tab-btn.active {
+    color: var(--cyan);
+    border-bottom-color: var(--cyan);
+    text-shadow: 0 0 12px rgba(0, 255, 249, 0.35);
+  }
+  .tab-btn.tab-thinking.active {
+    color: var(--yellow);
+    border-bottom-color: var(--yellow);
+    text-shadow: 0 0 12px rgba(255, 230, 0, 0.35);
+  }
+  .tab-panel {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .tab-panel.active { display: flex; }
+
+  /* ── OpenClaw 思考流（独立 Tab 全高）── */
+  .oc-full {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .oc-tab-head {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .oc-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--yellow);
+    text-shadow: 0 0 8px rgba(255, 230, 0, 0.35);
+    flex-shrink: 0;
+  }
+  .oc-meta-inline { font-size: 10px; color: var(--dim); flex: 1; min-width: 0; }
+  .oc-meta-inline span { color: var(--cyan); }
+  .oc-toolbar {
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    padding: 6px 14px; border-bottom: 1px solid var(--border);
+    background: var(--bg2); font-size: 10px;
+  }
+  .oc-status {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 2px;
+    font-size: 11px; color: var(--dim);
+  }
+  .oc-status.live { color: var(--green); text-shadow: 0 0 10px var(--green); }
+  .oc-status.dead { color: var(--dim); }
+  .oc-refresh {
+    margin-left: auto;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--dim); font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; padding: 4px 10px; cursor: pointer; letter-spacing: 1px;
+  }
+  .oc-refresh:hover { border-color: var(--yellow); color: var(--yellow); }
+  .oc-feed {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 14px 14px;
+    font-size: 12px;
+  }
+  .oc-feed::-webkit-scrollbar { width: 5px; }
+  .oc-feed::-webkit-scrollbar-thumb { background: var(--border); }
+  .oc-turn {
+    margin-bottom: 14px; padding-bottom: 12px;
+    border-bottom: 1px solid rgba(26,26,74,0.55);
+  }
+  .oc-turn:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .oc-think {
+    white-space: pre-wrap; word-break: break-word;
+    color: var(--green); line-height: 1.55;
+    text-shadow: 0 0 6px rgba(0,255,157,0.22);
+    padding: 8px 10px; background: rgba(0,255,157,0.04);
+    border-left: 2px solid var(--green);
+    margin-top: 8px;
+  }
+  .oc-turn .oc-think:first-of-type { margin-top: 0; }
+  .oc-empty {
+    color: var(--dim); font-size: 12px; padding: 24px; text-align: center; letter-spacing: 2px;
+  }
 
   /* ── Mobile ── */
   @media (max-width: 768px) {
     body { height: auto; overflow: auto; }
 
-    header { padding: 8px 14px; gap: 12px; }
+    header { padding: 8px 14px; gap: 8px; flex-wrap: wrap; }
     .logo { font-size: 16px; letter-spacing: 2px; }
+    .tab-btn { padding: 10px 16px; font-size: 12px; letter-spacing: 2px; }
     .stats-bar { gap: 12px; }
     .stat-val { font-size: 16px; }
     .stats-bar > .stat:last-child { display: none; } /* 隐藏 REPLIED stat 节省空间 */
@@ -380,38 +592,61 @@ const HTML = `<!DOCTYPE html>
   </div>
 </header>
 
-<div class="wc-section">
-  <div class="wc-toggle-bar" onclick="toggleWc()">
-    <div class="wc-label">// WORD CLOUD</div>
-    <div class="wc-meta-inline" id="wcMeta"></div>
-    <div class="wc-chevron" id="wcChevron">▼</div>
-  </div>
-  <div class="wc-body" id="wcBody">
-    <canvas id="wcCanvas"></canvas>
-  </div>
-</div>
+<div class="tab-shell">
+  <nav class="tab-bar" role="tablist" aria-label="主视图">
+    <button type="button" role="tab" class="tab-btn active" id="tabBtnComments" aria-controls="tabPanelComments" aria-selected="true" onclick="switchMainTab('comments')">评论流</button>
+    <button type="button" role="tab" class="tab-btn tab-thinking" id="tabBtnThinking" aria-controls="tabPanelThinking" aria-selected="false" onclick="switchMainTab('thinking')">思考流</button>
+  </nav>
 
-<div class="content">
-  <div class="toolbar">
-    <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="搜索评论内容..." />
-      <button class="clear-btn" id="clearBtn" onclick="clearSearch()">✕</button>
+  <div class="tab-panel active" id="tabPanelComments" role="tabpanel" aria-labelledby="tabBtnComments" aria-hidden="false">
+    <div class="wc-section">
+      <div class="wc-toggle-bar" onclick="toggleWc()">
+        <div class="wc-label">// WORD CLOUD</div>
+        <div class="wc-meta-inline" id="wcMeta"></div>
+        <div class="wc-chevron" id="wcChevron">▼</div>
+      </div>
+      <div class="wc-body" id="wcBody">
+        <canvas id="wcCanvas"></canvas>
+      </div>
     </div>
-    <div id="kwTag" style="display:none"></div>
-    <div class="filter-group">
-      <button class="filter-btn active" onclick="setFilter(this,'all')">ALL</button>
-      <button class="filter-btn mag" onclick="setFilter(this,0)">UNREPLIED</button>
-      <button class="filter-btn grn" onclick="setFilter(this,1)">REPLIED</button>
+
+    <div class="content">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <input type="text" id="searchInput" placeholder="搜索评论内容..." />
+          <button class="clear-btn" id="clearBtn" onclick="clearSearch()">✕</button>
+        </div>
+        <div id="kwTag" style="display:none"></div>
+        <div class="filter-group">
+          <button class="filter-btn active" onclick="setFilter(this,'all')">ALL</button>
+          <button class="filter-btn mag" onclick="setFilter(this,0)">UNREPLIED</button>
+          <button class="filter-btn grn" onclick="setFilter(this,1)">REPLIED</button>
+        </div>
+        <div class="result-info">共 <span id="totalCount">-</span> 条</div>
+      </div>
+
+      <div class="table-wrap" id="tableWrap"></div>
+
+      <div class="pagination">
+        <button class="page-btn" id="btnPrev" onclick="gotoPage(state.page-1)" disabled>◀ PREV</button>
+        <div class="page-info">PAGE <span id="pageNum">1</span> / <span id="pageTotal">1</span></div>
+        <button class="page-btn" id="btnNext" onclick="gotoPage(state.page+1)" disabled>NEXT ▶</button>
+      </div>
     </div>
-    <div class="result-info">共 <span id="totalCount">-</span> 条</div>
   </div>
 
-  <div class="table-wrap" id="tableWrap"></div>
-
-  <div class="pagination">
-    <button class="page-btn" id="btnPrev" onclick="gotoPage(state.page-1)" disabled>◀ PREV</button>
-    <div class="page-info">PAGE <span id="pageNum">1</span> / <span id="pageTotal">1</span></div>
-    <button class="page-btn" id="btnNext" onclick="gotoPage(state.page+1)" disabled>NEXT ▶</button>
+  <div class="tab-panel" id="tabPanelThinking" role="tabpanel" aria-labelledby="tabBtnThinking" aria-hidden="true">
+    <div class="oc-full" id="ocSection">
+      <div class="oc-tab-head">
+        <span class="oc-label">// OPENCLAW</span>
+        <div class="oc-meta-inline" id="ocMeta">切换到「思考流」后加载会话与实时流</div>
+      </div>
+      <div class="oc-toolbar">
+        <span class="oc-status dead" id="ocConn">OFFLINE</span>
+        <button type="button" class="oc-refresh" onclick="refreshOcHistory();">↻ 刷新历史</button>
+      </div>
+      <div class="oc-feed" id="ocFeed"></div>
+    </div>
   </div>
 </div>
 
@@ -581,6 +816,154 @@ function toggleWc() {
   document.getElementById('wcChevron').classList.toggle('collapsed', collapsed);
 }
 
+// ── OpenClaw 思考流（独立 Tab）───────────────────────────────
+let ocEs = null;
+let ocInitialized = false;
+
+function switchMainTab(name) {
+  const comments = name === 'comments';
+  const pC = document.getElementById('tabPanelComments');
+  const pT = document.getElementById('tabPanelThinking');
+  const bC = document.getElementById('tabBtnComments');
+  const bT = document.getElementById('tabBtnThinking');
+  if (!pC || !pT || !bC || !bT) return;
+  pC.classList.toggle('active', comments);
+  pT.classList.toggle('active', !comments);
+  pC.setAttribute('aria-hidden', comments ? 'false' : 'true');
+  pT.setAttribute('aria-hidden', comments ? 'true' : 'false');
+  bC.classList.toggle('active', comments);
+  bT.classList.toggle('active', !comments);
+  bC.setAttribute('aria-selected', comments ? 'true' : 'false');
+  bT.setAttribute('aria-selected', comments ? 'false' : 'true');
+  if (comments) {
+    disconnectOcStream();
+    requestAnimationFrame(() => { void loadWordcloud(); });
+  } else void activateThinkingTab();
+}
+
+async function activateThinkingTab() {
+  if (!ocInitialized) {
+    ocInitialized = true;
+    await loadOcHistory();
+  }
+  connectOcStream();
+}
+
+async function loadOcHistory() {
+  const feed = document.getElementById('ocFeed');
+  const meta = document.getElementById('ocMeta');
+  feed.innerHTML = '<div class="oc-empty">加载中<span class="blink">_</span></div>';
+  try {
+    const st = await fetch('/api/openclaw-thinking/status').then(r => r.json());
+    if (st.error) {
+      meta.textContent = String(st.error);
+      feed.innerHTML = '<div class="oc-empty">无法解析 sessions.json</div>';
+      return;
+    }
+    if (!st.exists) {
+      meta.innerHTML = '<span style="color:var(--yellow)">日志文件尚不存在</span>';
+      feed.innerHTML = '<div class="oc-empty">运行 OpenClaw 后将写入会话 JSONL</div>';
+      return;
+    }
+    meta.innerHTML = \`会话 <span>\${esc((st.sessionId || '').slice(0, 8))}…</span> · \${esc(st.sessionKey || '')}\`;
+    const data = await fetch('/api/openclaw-thinking/history?limit=80').then(r => r.json());
+    if (data.error) {
+      feed.innerHTML = \`<div class="oc-empty">\${esc(String(data.error))}</div>\`;
+      return;
+    }
+    feed.innerHTML = '';
+    if (!data.events || !data.events.length) {
+      feed.innerHTML = '<div class="oc-empty">暂无历史 · 等待实时推进</div>';
+      return;
+    }
+    let added = 0;
+    for (const ev of data.events) {
+      const el = renderOcEvent(ev);
+      if (el) {
+        feed.appendChild(el);
+        added += 1;
+      }
+    }
+    if (!added) {
+      feed.innerHTML = '<div class="oc-empty">暂无思考文本 · 等待实时推进</div>';
+    } else {
+      feed.scrollTop = feed.scrollHeight;
+    }
+  } catch (e) {
+    meta.textContent = '请求失败';
+    feed.innerHTML = \`<div class="oc-empty">\${esc(e.message || String(e))}</div>\`;
+  }
+}
+
+async function refreshOcHistory() {
+  await loadOcHistory();
+  const feed = document.getElementById('ocFeed');
+  if (feed) feed.scrollTop = feed.scrollHeight;
+}
+
+function renderOcEvent(ev) {
+  const thinkingBlocks = (ev.blocks || []).filter(
+    (b) => b.kind === 'thinking' && typeof b.text === 'string' && b.text.trim()
+  );
+  if (!thinkingBlocks.length) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'oc-turn';
+  for (const b of thinkingBlocks) {
+    const d = document.createElement('div');
+    d.className = 'oc-think';
+    d.textContent = b.text;
+    wrap.appendChild(d);
+  }
+  return wrap;
+}
+
+function connectOcStream() {
+  disconnectOcStream();
+  const statusEl = document.getElementById('ocConn');
+  if (!window.EventSource) {
+    if (statusEl) statusEl.textContent = 'NO ES';
+    return;
+  }
+  const es = new EventSource('/api/openclaw-thinking/stream');
+  ocEs = es;
+  es.addEventListener('open', () => {
+    if (statusEl) {
+      statusEl.textContent = 'LIVE';
+      statusEl.className = 'oc-status live';
+    }
+  });
+  es.addEventListener('ready', () => { /* 可选：握手 */ });
+  es.onmessage = (e) => {
+    try {
+      const ev = JSON.parse(e.data);
+      const el = renderOcEvent(ev);
+      if (!el) return;
+      const feed = document.getElementById('ocFeed');
+      feed.querySelectorAll('.oc-empty').forEach((x) => x.remove());
+      feed.appendChild(el);
+      feed.scrollTop = feed.scrollHeight;
+    } catch (_) { /* ignore */ }
+  };
+  es.onerror = () => {
+    if (statusEl && ocEs === es) {
+      statusEl.textContent = '重连…';
+      statusEl.className = 'oc-status dead';
+    }
+  };
+}
+
+function disconnectOcStream() {
+  if (ocEs) {
+    ocEs.close();
+    ocEs = null;
+  }
+  const statusEl = document.getElementById('ocConn');
+  if (statusEl) {
+    statusEl.textContent = 'OFFLINE';
+    statusEl.className = 'oc-status dead';
+  }
+}
+
 async function loadWordcloud() {
   const meta = document.getElementById('wcMeta');
   const canvas = document.getElementById('wcCanvas');
@@ -632,6 +1015,7 @@ document.getElementById('searchInput').addEventListener('input', e => {
 
 app.get("/", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store, max-age=0");
   res.send(HTML);
 });
 
@@ -639,5 +1023,8 @@ app.get("/", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`\n  DOUYIN // COMMENT TERMINAL`);
-  console.log(`  http://localhost:${PORT}\n`);
+  console.log(`  http://localhost:${PORT}`);
+  console.log(
+    `  OpenClaw 思考流  GET /api/openclaw-thinking/status | /history | /stream\n`
+  );
 });

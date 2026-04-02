@@ -38,7 +38,6 @@ npm run auth
 
 ```bash
 npm run view
-npm run view -- https://creator.douyin.com/
 ```
 
 ## 获取作品列表
