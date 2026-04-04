@@ -226,10 +226,10 @@ async function uploadHeaderImage(page, imagePath, baseDir) {
 
   await fileChooser.setFiles(absoluteImagePath);
   const confirmButton = page.getByRole("button", { name: "确定" }).first();
-  await confirmButton.waitFor({ state: "visible", timeout: 15000 });
-  await page.waitForTimeout(1000);
+  await confirmButton.waitFor({ state: "visible", timeout: 30000 });
+  await page.waitForTimeout(5000);
   await confirmButton.click();
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(5000);
   await dismissPopups(page);
 }
 
