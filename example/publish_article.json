@@ -1,0 +1,8 @@
+{
+    "title": "文章标题",
+    "subtitle": "文章摘要",
+    "content": "正文内容",
+    "imagePath": "claw.png",
+    "music": "恭喜发财",
+    "tags": ["标签1", "标签2"]
+  }
