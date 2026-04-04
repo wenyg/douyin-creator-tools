@@ -9,7 +9,7 @@ import { addCommentsFromSnapshot, extractCommentSnapshot } from "./comment-snaps
 
 export async function waitForCommentsArea(page, options) {
   const candidates = [
-    page.locator('[comment-item]').first(),
+    page.locator("[comment-item]").first(),
     page.locator('button:has-text("回复"), div:has-text("回复")').first()
   ];
   const timeoutMs = getEffectiveTimeout(options, options.uiTimeoutMs);
@@ -51,9 +51,7 @@ async function markCommentStatusFilter(page) {
       }) ??
       candidates.find((node) => {
         const text = normalize(node.innerText || node.textContent || "");
-        return (
-          text.includes("全部评论") || text.includes("未回复") || text.includes("已回复")
-        );
+        return text.includes("全部评论") || text.includes("未回复") || text.includes("已回复");
       });
 
     if (!(target instanceof HTMLElement)) {
@@ -83,7 +81,7 @@ async function waitForCommentStatusFilter(page, options) {
     if (Date.now() - lastLoggedAt >= 1000) {
       const availableComboboxes = await page.evaluate(() => {
         const normalize = (value = "") => value.replace(/\s+/g, " ").trim();
-        return Array.from(document.querySelectorAll("[role=\"combobox\"]"))
+        return Array.from(document.querySelectorAll('[role="combobox"]'))
           .filter((node) => node instanceof HTMLElement)
           .map((node) => normalize(node.innerText || node.textContent || ""))
           .filter(Boolean)
@@ -101,7 +99,7 @@ async function waitForCommentStatusFilter(page, options) {
 
   const availableComboboxes = await page.evaluate(() => {
     const normalize = (value = "") => value.replace(/\s+/g, " ").trim();
-    return Array.from(document.querySelectorAll("[role=\"combobox\"]"))
+    return Array.from(document.querySelectorAll('[role="combobox"]'))
       .filter((node) => node instanceof HTMLElement)
       .map((node) => normalize(node.innerText || node.textContent || ""))
       .filter(Boolean)
@@ -210,9 +208,9 @@ export async function getCommentTerminalIndicator(page) {
       // The page may not use [comment-item] attributes, so fall back to
       // detecting "回复" buttons (each root comment has one).
       const hasCommentItems = document.querySelectorAll("[comment-item]").length > 0;
-      const hasReplyButtons = Array.from(
-        document.querySelectorAll("button, div, span")
-      ).some((n) => (n.textContent || "").trim() === "回复");
+      const hasReplyButtons = Array.from(document.querySelectorAll("button, div, span")).some(
+        (n) => (n.textContent || "").trim() === "回复"
+      );
       const hasComments = hasCommentItems || hasReplyButtons;
 
       if (!hasComments) {
@@ -316,9 +314,9 @@ export async function applyUnrepliedCommentsFilter(page, options) {
 
             const currentFingerprint = Array.from(
               (function collectCommentNodes() {
-                const explicitNodes = Array.from(document.querySelectorAll("[comment-item]")).filter(
-                  (node) => node instanceof HTMLElement
-                );
+                const explicitNodes = Array.from(
+                  document.querySelectorAll("[comment-item]")
+                ).filter((node) => node instanceof HTMLElement);
                 if (explicitNodes.length > 0) {
                   return explicitNodes;
                 }
@@ -389,7 +387,11 @@ export async function applyUnrepliedCommentsFilter(page, options) {
 export async function markCommentScrollContainer(page) {
   const marked = await page.evaluate(() => {
     const marker = "data-codex-comment-scroll";
-    const elements = [document.documentElement, document.body, ...document.querySelectorAll("main, section, div")];
+    const elements = [
+      document.documentElement,
+      document.body,
+      ...document.querySelectorAll("main, section, div")
+    ];
 
     for (const element of document.querySelectorAll(`[${marker}]`)) {
       element.removeAttribute(marker);
@@ -479,9 +481,7 @@ export async function advanceCommentScroll(page, scrollContainer, options = {}) 
       ? options.minDistancePx
       : 900;
   const wheelDeltaY =
-    Number.isFinite(options.wheelDeltaY) && options.wheelDeltaY > 0
-      ? options.wheelDeltaY
-      : 1400;
+    Number.isFinite(options.wheelDeltaY) && options.wheelDeltaY > 0 ? options.wheelDeltaY : 1400;
   const pageDistanceMultiplier =
     Number.isFinite(options.pageDistanceMultiplier) && options.pageDistanceMultiplier > 0
       ? options.pageDistanceMultiplier
@@ -491,28 +491,31 @@ export async function advanceCommentScroll(page, scrollContainer, options = {}) 
       ? options.pageMinDistancePx
       : minDistancePx;
 
-  const containerState = await scrollContainer.evaluate((element, scrollOptions) => {
-    const before = element.scrollTop;
-    const maxScrollTop = Math.max(element.scrollHeight - element.clientHeight, 0);
-    const next = Math.min(
-      before +
-        Math.max(
-          element.clientHeight * scrollOptions.distanceMultiplier,
-          scrollOptions.minDistancePx
-        ),
-      maxScrollTop
-    );
-    element.scrollTop = next;
-    return {
-      before,
-      after: element.scrollTop,
-      maxScrollTop,
-      strategy: "container"
-    };
-  }, {
-    distanceMultiplier,
-    minDistancePx
-  });
+  const containerState = await scrollContainer.evaluate(
+    (element, scrollOptions) => {
+      const before = element.scrollTop;
+      const maxScrollTop = Math.max(element.scrollHeight - element.clientHeight, 0);
+      const next = Math.min(
+        before +
+          Math.max(
+            element.clientHeight * scrollOptions.distanceMultiplier,
+            scrollOptions.minDistancePx
+          ),
+        maxScrollTop
+      );
+      element.scrollTop = next;
+      return {
+        before,
+        after: element.scrollTop,
+        maxScrollTop,
+        strategy: "container"
+      };
+    },
+    {
+      distanceMultiplier,
+      minDistancePx
+    }
+  );
 
   if (containerState.after > containerState.before) {
     return containerState;
@@ -538,39 +541,43 @@ export async function advanceCommentScroll(page, scrollContainer, options = {}) 
     return wheelState;
   }
 
-  return page.evaluate((scrollOptions) => {
-    const element =
-      document.scrollingElement instanceof HTMLElement
-        ? document.scrollingElement
-        : document.documentElement;
-    const before = element.scrollTop;
-    const maxScrollTop = Math.max(element.scrollHeight - element.clientHeight, 0);
-    const next = Math.min(
-      before +
-        Math.max(
-          window.innerHeight * scrollOptions.pageDistanceMultiplier,
-          scrollOptions.pageMinDistancePx
-        ),
-      maxScrollTop
-    );
-    element.scrollTop = next;
-    return {
-      before,
-      after: element.scrollTop,
-      maxScrollTop,
-      strategy: "page"
-    };
-  }, {
-    pageDistanceMultiplier,
-    pageMinDistancePx
-  });
+  return page.evaluate(
+    (scrollOptions) => {
+      const element =
+        document.scrollingElement instanceof HTMLElement
+          ? document.scrollingElement
+          : document.documentElement;
+      const before = element.scrollTop;
+      const maxScrollTop = Math.max(element.scrollHeight - element.clientHeight, 0);
+      const next = Math.min(
+        before +
+          Math.max(
+            window.innerHeight * scrollOptions.pageDistanceMultiplier,
+            scrollOptions.pageMinDistancePx
+          ),
+        maxScrollTop
+      );
+      element.scrollTop = next;
+      return {
+        before,
+        after: element.scrollTop,
+        maxScrollTop,
+        strategy: "page"
+      };
+    },
+    {
+      pageDistanceMultiplier,
+      pageMinDistancePx
+    }
+  );
 }
-
 
 export async function collectComments(page, options) {
   const filterMode = options.filterMode ?? "unreplied";
   if (filterMode === "all") {
-    logReplyFilterDebug("entering all-comments collection flow, filter already applied via page reload");
+    logReplyFilterDebug(
+      "entering all-comments collection flow, filter already applied via page reload"
+    );
   } else {
     logReplyFilterDebug("entering unreplied collection flow");
     await applyUnrepliedCommentsFilter(page, options);

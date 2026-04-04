@@ -1,20 +1,40 @@
 # 抖音创作者中心工具
 
-基于 Playwright，复用同一份本地登录态处理抖音创作者中心里的几类操作：
+基于 Playwright 的抖音创作者中心 CLI 自动化工具集。复用同一份本地登录态，在终端完成评论导出、批量回复、作品管理、文章发布等操作。
 
-- `npm run auth`
-- `npm run view`
-- `npm run works`
-- `npm run comments:export`
-- `npm run comments:export-all`
-- `npm run comments:reply`
-- `npm run article:publish`
+## 功能
+
+| 命令                          | 说明                        |
+| ----------------------------- | --------------------------- |
+| `npm run auth`                | 扫码登录，保存鉴权状态      |
+| `npm run view`                | 手动打开创作者中心页面      |
+| `npm run works`               | 获取作品列表                |
+| `npm run comments:export`     | 导出未回复评论              |
+| `npm run comments:export-all` | 导出全部评论                |
+| `npm run comments:reply`      | 批量回复评论                |
+| `npm run article:publish`     | 发布图文文章                |
+| `npm run server`              | 启动本地评论管理 Web 控制台 |
+
+## 环境要求
+
+- **Node.js** >= 20（推荐 22 LTS）
+- **Playwright Chromium**（安装时自动下载）
 
 ## 安装
 
 ```bash
 npm install
 npx playwright install chromium
+```
+
+## 目录结构
+
+```
+src/                  # CLI 入口脚本
+src/lib/              # 核心库（浏览器操作、评论流程、数据库等）
+example/              # 示例文件（发布文章 JSON、封面图）
+data/                 # 运行时数据（SQLite 数据库，已 gitignore）
+comments-output/      # 导出结果（已 gitignore）
 ```
 
 ## 公共参数
@@ -47,7 +67,6 @@ npm run works
 ```
 
 默认输出到 `comments-output/list-works.json` 可通过 `--out <path>` 指定路径
-
 
 输出示例：
 
@@ -186,9 +205,22 @@ npm run article:publish -- article.json
 npm run article:publish -- --dry-run article.json
 ```
 
+## 开发
+
+```bash
+npm run lint          # ESLint 检查
+npm run lint:fix      # ESLint 自动修复
+npm run format        # Prettier 格式化
+npm run format:check  # Prettier 检查（CI 用）
+```
+
 ## 说明
 
 - 不绕过登录、验证码或平台限制。
 - 所有自动化都复用 `.playwright/douyin-profile`。
 - 首次登录不要用 `--headless`。
 - 如果页面结构变化，优先用 `npm run view` 先人工确认页面状态。
+
+## 更新日志
+
+详见 [CHANGELOG.md](CHANGELOG.md)。

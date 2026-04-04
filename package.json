@@ -1,8 +1,20 @@
 {
-  "name": "douyin-comment-fetcher",
+  "name": "douyin-creator-tools",
   "version": "0.1.0",
   "private": true,
-  "description": "Douyin creator center automation tools.",
+  "type": "module",
+  "description": "基于 Playwright 的抖音创作者中心自动化工具：评论导出/回复、作品管理、文章发布。",
+  "keywords": [
+    "douyin",
+    "playwright",
+    "automation",
+    "creator",
+    "comments"
+  ],
+  "author": "",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "auth": "node ./src/auth-douyin.mjs",
     "view": "node ./src/open-douyin-view.mjs",
@@ -13,11 +25,21 @@
     "article:publish": "node ./src/publish-douyin-article.mjs",
     "server": "PORT=8765 node ./src/server.mjs",
     "wordcloud": "node ./src/compute-wordcloud.mjs",
-    "debug:user": "node ./src/debug-user.mjs"
+    "debug:user": "node ./src/debug-user.mjs",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.mjs\" \"*.json\" \"*.md\"",
+    "format:check": "prettier --check \"src/**/*.mjs\" \"*.json\" \"*.md\""
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
     "express": "^5.2.1",
     "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "eslint": "^9.24.0",
+    "eslint-config-prettier": "^10.1.2",
+    "prettier": "^3.5.3"
   }
 }

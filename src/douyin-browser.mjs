@@ -25,7 +25,8 @@ export async function promptForEnter(message) {
 export function parseViewport(value) {
   if (!value || value === "auto") return null;
   const match = String(value).match(/^(\d+)[xX×](\d+)$/);
-  if (!match) throw new Error(`Invalid viewport format: "${value}" (expected WIDTHxHEIGHT, e.g. 1440x900)`);
+  if (!match)
+    throw new Error(`Invalid viewport format: "${value}" (expected WIDTHxHEIGHT, e.g. 1440x900)`);
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
@@ -47,7 +48,7 @@ export async function launchPersistentPage(options = {}) {
   const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
   const page = alwaysNewPage
     ? await context.newPage()
-    : context.pages()[0] ?? (await context.newPage());
+    : (context.pages()[0] ?? (await context.newPage()));
 
   await page.bringToFront().catch(() => {});
 

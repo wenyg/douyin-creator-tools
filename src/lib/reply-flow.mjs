@@ -433,12 +433,7 @@ export async function replyToComments(page, options) {
     }
 
     const snapshot = await extractCommentSnapshot(page);
-    const nextTarget = getNextReplyTarget(
-      snapshot,
-      options,
-      processedSignatures,
-      processedPlanIds
-    );
+    const nextTarget = getNextReplyTarget(snapshot, options, processedSignatures, processedPlanIds);
 
     if (nextTarget) {
       const {
@@ -619,9 +614,12 @@ export async function replyToComments(page, options) {
       exitDetails = {
         bottomSearchBursts
       };
-      logReplyFilterDebug("reply flow completed: reached bottom repeatedly with no matching plans", {
-        bottomSearchBursts
-      });
+      logReplyFilterDebug(
+        "reply flow completed: reached bottom repeatedly with no matching plans",
+        {
+          bottomSearchBursts
+        }
+      );
       break;
     }
 

@@ -34,9 +34,7 @@ export async function ensureCommentPageReady(page, pageUrl, options) {
     await selectWorkButton.waitFor({ state: "visible", timeout: uiTimeoutMs });
     return;
   } catch (error) {
-    console.log(
-      "未检测到创作者评论页入口，请先运行 npm run auth，或在当前浏览器中完成登录。"
-    );
+    console.log("未检测到创作者评论页入口，请先运行 npm run auth，或在当前浏览器中完成登录。");
   }
 
   await promptForEnter("完成登录并进入创作者中心评论页后，按 Enter 继续");

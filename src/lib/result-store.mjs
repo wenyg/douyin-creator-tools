@@ -79,13 +79,7 @@ function tryRepairJson(raw) {
       } else {
         const rest = raw.slice(i + 1).trimStart();
         const next = rest[0];
-        if (
-          next === ":" ||
-          next === "," ||
-          next === "}" ||
-          next === "]" ||
-          next === undefined
-        ) {
+        if (next === ":" || next === "," || next === "}" || next === "]" || next === undefined) {
           inString = false;
           result += ch;
         } else {
@@ -120,9 +114,7 @@ export async function loadReplyCommentsFile(replyCommentsFile) {
   } catch (originalError) {
     try {
       parsed = JSON.parse(tryRepairJson(rawContent));
-      console.warn(
-        `[warn] JSON 文件包含未转义的引号，已自动修复: ${replyCommentsFile}`
-      );
+      console.warn(`[warn] JSON 文件包含未转义的引号，已自动修复: ${replyCommentsFile}`);
     } catch (_repairError) {
       throw new Error(
         `JSON 解析失败: ${replyCommentsFile}\n  ${describeJsonParseError(rawContent, originalError)}`
@@ -226,7 +218,9 @@ export function prepareResultForOutput(result) {
       nextResult.totalProcessed = dedupedResults.entries.length;
     }
     if (typeof nextResult.repliedCount === "number") {
-      nextResult.repliedCount = dedupedResults.entries.filter((item) => item?.status === "replied").length;
+      nextResult.repliedCount = dedupedResults.entries.filter(
+        (item) => item?.status === "replied"
+      ).length;
     }
     if (typeof nextResult.dryRunCount === "number") {
       nextResult.dryRunCount = dedupedResults.entries.filter(
@@ -239,7 +233,9 @@ export function prepareResultForOutput(result) {
       ).length;
     }
     if (typeof nextResult.errorCount === "number") {
-      nextResult.errorCount = dedupedResults.entries.filter((item) => item?.status === "error").length;
+      nextResult.errorCount = dedupedResults.entries.filter(
+        (item) => item?.status === "error"
+      ).length;
     }
     if (dedupedResults.removed > 0) {
       dedupeSummary.push({

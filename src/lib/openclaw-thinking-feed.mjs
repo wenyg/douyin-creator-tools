@@ -18,12 +18,9 @@ function expandHome(p) {
  */
 export function resolveOpenclawSessionFile(options = {}) {
   const sessionsPath = expandHome(
-    options.sessionsPath ??
-      process.env.OPENCLAW_SESSIONS_JSON ??
-      DEFAULT_SESSIONS_JSON
+    options.sessionsPath ?? process.env.OPENCLAW_SESSIONS_JSON ?? DEFAULT_SESSIONS_JSON
   );
-  const sessionKey =
-    options.sessionKey ?? process.env.OPENCLAW_SESSION_KEY ?? "agent:main:main";
+  const sessionKey = options.sessionKey ?? process.env.OPENCLAW_SESSION_KEY ?? "agent:main:main";
 
   let raw;
   try {

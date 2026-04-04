@@ -5,10 +5,7 @@ import {
   launchPersistentPage,
   promptForEnter
 } from "./douyin-browser.mjs";
-import {
-  getEffectiveTimeout,
-  setReplyFilterDebugEnabled
-} from "./lib/common.mjs";
+import { getEffectiveTimeout, setReplyFilterDebugEnabled } from "./lib/common.mjs";
 import { ensureCommentPageReady, hardRefreshPage } from "./lib/comment-page.mjs";
 import {
   captureCommentListFingerprint,
@@ -23,7 +20,12 @@ import {
   getSelectedWorkOutput,
   getWorksOutput
 } from "./lib/works-panel.mjs";
-import { getReplyCountMap, getUserHistoryMap, incrementReplyCount, upsertComments } from "./lib/db-ops.mjs";
+import {
+  getReplyCountMap,
+  getUserHistoryMap,
+  incrementReplyCount,
+  upsertComments
+} from "./lib/db-ops.mjs";
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 60000;
 const DEFAULT_UI_TIMEOUT_MS = 30000;
@@ -42,15 +44,9 @@ const REPLY_FLOW_TIMEOUT_PER_PLAN_MS = 20000;
 const MAX_AUTO_REPLY_FLOW_TIMEOUT_MS = 7200000;
 
 export const DEFAULT_WORKS_OUTPUT_PATH = path.resolve("comments-output/list-works.json");
-export const DEFAULT_EXPORT_OUTPUT_PATH = path.resolve(
-  "comments-output/unreplied-comments.json"
-);
-export const DEFAULT_EXPORT_ALL_OUTPUT_PATH = path.resolve(
-  "comments-output/all-comments.json"
-);
-export const DEFAULT_REPLY_OUTPUT_PATH = path.resolve(
-  "comments-output/reply-comments-result.json"
-);
+export const DEFAULT_EXPORT_OUTPUT_PATH = path.resolve("comments-output/unreplied-comments.json");
+export const DEFAULT_EXPORT_ALL_OUTPUT_PATH = path.resolve("comments-output/all-comments.json");
+export const DEFAULT_REPLY_OUTPUT_PATH = path.resolve("comments-output/reply-comments-result.json");
 
 function buildRuntimeBudget(totalTimeoutMs = 0) {
   if (!totalTimeoutMs) {
@@ -151,7 +147,7 @@ export async function listWorks(options = {}) {
 
 export async function exportUnrepliedComments(options = {}) {
   if (!options.workTitle) {
-    throw new Error("Missing work title. Usage: npm run comments:export -- \"作品短标题\"");
+    throw new Error('Missing work title. Usage: npm run comments:export -- "作品短标题"');
   }
 
   const outputPath = options.outputPath || DEFAULT_EXPORT_OUTPUT_PATH;
@@ -184,10 +180,13 @@ export async function exportUnrepliedComments(options = {}) {
       if (includeHistory) {
         historyMap = getUserHistoryMap(comments.map((c) => c.username));
       }
-      replyCountMap = getReplyCountMap(selectedWorkOutput.title, comments.map((c) => ({
-        username: c.username,
-        commentText: c.commentText
-      })));
+      replyCountMap = getReplyCountMap(
+        selectedWorkOutput.title,
+        comments.map((c) => ({
+          username: c.username,
+          commentText: c.commentText
+        }))
+      );
     } catch (dbError) {
       console.warn(`[db] 查询历史/回复次数失败（不影响主流程）: ${dbError?.message ?? dbError}`);
     }
@@ -222,11 +221,14 @@ export async function exportUnrepliedComments(options = {}) {
     );
 
     try {
-      upsertComments(selectedWorkOutput.title, comments.map((c) => ({
-        username: c.username,
-        commentText: c.commentText,
-        replyMessage: null
-      })));
+      upsertComments(
+        selectedWorkOutput.title,
+        comments.map((c) => ({
+          username: c.username,
+          commentText: c.commentText,
+          replyMessage: null
+        }))
+      );
     } catch (dbError) {
       console.warn(`[db] 写入评论失败（不影响主流程）: ${dbError?.message ?? dbError}`);
     }
@@ -237,7 +239,7 @@ export async function exportUnrepliedComments(options = {}) {
 
 export async function exportAllComments(options = {}) {
   if (!options.workTitle) {
-    throw new Error("Missing work title. Usage: npm run comments:export-all -- \"作品短标题\"");
+    throw new Error('Missing work title. Usage: npm run comments:export-all -- "作品短标题"');
   }
 
   const outputPath = options.outputPath || DEFAULT_EXPORT_ALL_OUTPUT_PATH;
@@ -290,10 +292,13 @@ export async function exportAllComments(options = {}) {
       if (includeHistory) {
         historyMap = getUserHistoryMap(comments.map((c) => c.username));
       }
-      replyCountMap = getReplyCountMap(selectedWorkOutput.title, comments.map((c) => ({
-        username: c.username,
-        commentText: c.commentText
-      })));
+      replyCountMap = getReplyCountMap(
+        selectedWorkOutput.title,
+        comments.map((c) => ({
+          username: c.username,
+          commentText: c.commentText
+        }))
+      );
     } catch (dbError) {
       console.warn(`[db] 查询历史/回复次数失败（不影响主流程）: ${dbError?.message ?? dbError}`);
     }
@@ -327,11 +332,14 @@ export async function exportAllComments(options = {}) {
     );
 
     try {
-      upsertComments(selectedWorkOutput.title, comments.map((c) => ({
-        username: c.username,
-        commentText: c.commentText,
-        replyMessage: null
-      })));
+      upsertComments(
+        selectedWorkOutput.title,
+        comments.map((c) => ({
+          username: c.username,
+          commentText: c.commentText,
+          replyMessage: null
+        }))
+      );
     } catch (dbError) {
       console.warn(`[db] 写入评论失败（不影响主流程）: ${dbError?.message ?? dbError}`);
     }
@@ -356,10 +364,13 @@ export async function replyComments(options = {}) {
   // 过滤掉 reply_count > 2 的评论（已尝试回复超过 2 次，不再重复）
   let replyPlans = allReplyPlans;
   try {
-    const replyCountMap = getReplyCountMap(selectedWorkHint.title, allReplyPlans.map((p) => ({
-      username: p.username,
-      commentText: p.commentText
-    })));
+    const replyCountMap = getReplyCountMap(
+      selectedWorkHint.title,
+      allReplyPlans.map((p) => ({
+        username: p.username,
+        commentText: p.commentText
+      }))
+    );
     const skippedByCount = [];
     replyPlans = allReplyPlans.filter((plan) => {
       const count = replyCountMap.get(`${plan.username}|||${plan.commentText}`) ?? 0;

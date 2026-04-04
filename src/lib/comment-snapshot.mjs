@@ -1,7 +1,6 @@
 export async function extractCommentSnapshot(page) {
   return page.evaluate(() => {
-    const root =
-      document.querySelector('[data-codex-comment-scroll="true"]') || document.body;
+    const root = document.querySelector('[data-codex-comment-scroll="true"]') || document.body;
 
     const normalize = (value = "") => value.replace(/\s+/g, " ").trim();
     const metaPattern =
@@ -156,7 +155,11 @@ export async function extractCommentSnapshot(page) {
           if (!line || line.length > 40) {
             return false;
           }
-          if (metaPattern.test(line) || replyThreadPattern.test(line) || controlPattern.test(line)) {
+          if (
+            metaPattern.test(line) ||
+            replyThreadPattern.test(line) ||
+            controlPattern.test(line)
+          ) {
             return false;
           }
           return true;
@@ -167,7 +170,11 @@ export async function extractCommentSnapshot(page) {
           if (!line || line === usernameText || line === publishText) {
             return false;
           }
-          if (metaPattern.test(line) || replyThreadPattern.test(line) || controlPattern.test(line)) {
+          if (
+            metaPattern.test(line) ||
+            replyThreadPattern.test(line) ||
+            controlPattern.test(line)
+          ) {
             return false;
           }
           return true;
@@ -202,9 +209,7 @@ export async function extractCommentSnapshot(page) {
           publishText,
           consumedLineCount: 0,
           order,
-          signature: [username, commentText, publishText]
-            .map(normalize)
-            .join("|")
+          signature: [username, commentText, publishText].map(normalize).join("|")
         }
       };
     };
@@ -271,9 +276,7 @@ export async function extractCommentSnapshot(page) {
     };
 
     const collectViaContentSelectors = () => {
-      const contentEls = Array.from(
-        root.querySelectorAll('div[class*="comment-content-text-"]')
-      );
+      const contentEls = Array.from(root.querySelectorAll('div[class*="comment-content-text-"]'));
       if (contentEls.length === 0) return null;
 
       const blocks = [];
@@ -299,18 +302,15 @@ export async function extractCommentSnapshot(page) {
         const commentText = normalize(fullText(contentEl));
         if (!username || !commentText) continue;
 
-        const containerRows = Array.from(
-          new Set(splitLines(container.innerText || ""))
-        ).slice(0, 40);
+        const containerRows = Array.from(new Set(splitLines(container.innerText || ""))).slice(
+          0,
+          40
+        );
         const publishText =
-          containerRows.find(
-            (line) => metaPattern.test(line) && !controlPattern.test(line)
-          ) || "";
+          containerRows.find((line) => metaPattern.test(line) && !controlPattern.test(line)) || "";
 
         const rect = contentEl.getBoundingClientRect();
-        const signature = [username, commentText, publishText]
-          .map(normalize)
-          .join("|");
+        const signature = [username, commentText, publishText].map(normalize).join("|");
 
         if (container instanceof HTMLElement) {
           container.setAttribute("data-codex-comment-block", String(i));
@@ -347,8 +347,7 @@ export async function extractCommentSnapshot(page) {
             return null;
           }
 
-          const rect =
-            block instanceof HTMLElement ? block.getBoundingClientRect() : null;
+          const rect = block instanceof HTMLElement ? block.getBoundingClientRect() : null;
           const structuredBlock = extractStructuredEntryFromBlock(block, domIndex);
           if (structuredBlock) {
             return {
@@ -493,7 +492,8 @@ export function addCommentsFromSnapshot(commentsBySignature, snapshot) {
       ...existingComment,
       ...comment,
       publishText:
-        comment.publishText && comment.publishText.length >= (existingComment.publishText ?? "").length
+        comment.publishText &&
+        comment.publishText.length >= (existingComment.publishText ?? "").length
           ? comment.publishText
           : existingComment.publishText,
       order:

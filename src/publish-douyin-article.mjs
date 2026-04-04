@@ -11,8 +11,7 @@ import {
 } from "./douyin-browser.mjs";
 import { createSharedCliArgs, consumeSharedCliArg } from "./cli-options.mjs";
 
-const DEFAULT_ARTICLE_PAGE_URL =
-  "https://creator.douyin.com/creator-micro/content/post/article";
+const DEFAULT_ARTICLE_PAGE_URL = "https://creator.douyin.com/creator-micro/content/post/article";
 
 function printHelp() {
   console.log(`
@@ -100,7 +99,9 @@ function readArticleInput(inputFile) {
   try {
     rawContent = fs.readFileSync(inputFile, "utf8");
   } catch (error) {
-    errors.push(`无法读取文件: ${inputFile} (${error instanceof Error ? error.message : String(error)})`);
+    errors.push(
+      `无法读取文件: ${inputFile} (${error instanceof Error ? error.message : String(error)})`
+    );
     return { errors };
   }
 
@@ -152,7 +153,9 @@ function readArticleInput(inputFile) {
     : path.resolve(inputBaseDir, imagePath);
 
   if (!fs.existsSync(absoluteImagePath)) {
-    errors.push(`头图文件不存在: ${absoluteImagePath} (imagePath: "${imagePath}"，相对于 ${inputBaseDir})`);
+    errors.push(
+      `头图文件不存在: ${absoluteImagePath} (imagePath: "${imagePath}"，相对于 ${inputBaseDir})`
+    );
     return { errors };
   }
 
@@ -327,7 +330,10 @@ async function selectMusic(page, musicName) {
     return true;
   });
 
-  await hiddenUseButton.locator("xpath=ancestor::*[4]").hover().catch(() => {});
+  await hiddenUseButton
+    .locator("xpath=ancestor::*[4]")
+    .hover()
+    .catch(() => {});
   await page.waitForTimeout(500);
 
   const useButton = page.getByText("使用", { exact: true }).first();

@@ -102,9 +102,7 @@ function compactLogValue(value, depth = 0) {
   }
 
   if (Array.isArray(value)) {
-    const items = value
-      .slice(0, LOG_ARRAY_LIMIT)
-      .map((item) => compactLogValue(item, depth + 1));
+    const items = value.slice(0, LOG_ARRAY_LIMIT).map((item) => compactLogValue(item, depth + 1));
     if (value.length > LOG_ARRAY_LIMIT) {
       items.push(`+${value.length - LOG_ARRAY_LIMIT} more`);
     }

@@ -26,10 +26,15 @@ function parseArgs(argv) {
   const args = { username: "", work: "" };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--help" || arg === "-h") { args.help = true; }
-    else if (arg === "--work") { args.work = argv[++i] ?? ""; }
-    else if (!arg.startsWith("-") && !args.username) { args.username = arg; }
-    else { throw new Error(`未知参数：${arg}`); }
+    if (arg === "--help" || arg === "-h") {
+      args.help = true;
+    } else if (arg === "--work") {
+      args.work = argv[++i] ?? "";
+    } else if (!arg.startsWith("-") && !args.username) {
+      args.username = arg;
+    } else {
+      throw new Error(`未知参数：${arg}`);
+    }
   }
   return args;
 }
@@ -45,7 +50,10 @@ function fmt(val) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  if (args.help) { printHelp(); return; }
+  if (args.help) {
+    printHelp();
+    return;
+  }
   if (!args.username) {
     console.error("缺少用户名参数。运行 npm run debug:user -- --help 查看用法。");
     process.exitCode = 1;
@@ -64,15 +72,19 @@ function main() {
 
   const where = `WHERE ${conditions.join(" AND ")}`;
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT id, work_title, comment_text, comment_time, reply_message, reply_count
     FROM comments
     ${where}
     ORDER BY comment_time ASC, id ASC
-  `).all(...params);
+  `
+    )
+    .all(...params);
 
   const total = rows.length;
-  const repliedCount = rows.filter(r => r.reply_message?.trim()).length;
+  const repliedCount = rows.filter((r) => r.reply_message?.trim()).length;
   const maxReplied = rows.reduce((m, r) => Math.max(m, r.reply_count ?? 0), 0);
 
   console.log("");
@@ -90,7 +102,9 @@ function main() {
 
   for (const row of rows) {
     console.log("");
-    console.log(`  [#${row.id}]  ${fmt(row.comment_time)}  《${fmt(row.work_title)}》  回复次数: ${row.reply_count ?? 0}`);
+    console.log(
+      `  [#${row.id}]  ${fmt(row.comment_time)}  《${fmt(row.work_title)}》  回复次数: ${row.reply_count ?? 0}`
+    );
     console.log(bar("─", 68));
     console.log(`  评论：${fmt(row.comment_text)}`);
     if (row.reply_message?.trim()) {

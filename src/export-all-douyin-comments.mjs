@@ -2,10 +2,7 @@
 
 import process from "node:process";
 import { createSharedCliArgs, consumeSharedCliArg } from "./cli-options.mjs";
-import {
-  DEFAULT_EXPORT_ALL_OUTPUT_PATH,
-  exportAllComments
-} from "./comment-workflow.mjs";
+import { DEFAULT_EXPORT_ALL_OUTPUT_PATH, exportAllComments } from "./comment-workflow.mjs";
 import { normalizeText, toPositiveInteger } from "./lib/common.mjs";
 
 function printHelp() {
@@ -86,13 +83,13 @@ async function main() {
   }
 
   if (!args.workTitle) {
-    throw new Error("Missing work title. Usage: npm run comments:export-all -- \"作品短标题\"");
+    throw new Error('Missing work title. Usage: npm run comments:export-all -- "作品短标题"');
   }
 
   await exportAllComments(args);
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

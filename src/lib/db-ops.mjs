@@ -91,12 +91,16 @@ export function getUserHistoryMap(usernames) {
   const unique = [...new Set(usernames.filter(Boolean))];
   const placeholders = unique.map(() => "?").join(",");
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT username, comment_text, comment_time, work_title
     FROM comments
     WHERE username IN (${placeholders})
     ORDER BY comment_time DESC, id DESC
-  `).all(...unique);
+  `
+    )
+    .all(...unique);
 
   const result = new Map();
   for (const row of rows) {
@@ -124,8 +128,10 @@ export function incrementReplyCount(workTitle, username, commentText) {
     return;
   }
   const db = getDb();
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE comments SET reply_count = reply_count + 1
     WHERE work_title = ? AND username = ? AND comment_text = ?
-  `).run(workTitle, username, commentText);
+  `
+  ).run(workTitle, username, commentText);
 }

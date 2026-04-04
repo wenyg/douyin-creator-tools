@@ -19,13 +19,19 @@ app.get("/api/stats", (_req, res) => {
   const db = getDb();
   const total = db.prepare("SELECT COUNT(*) AS total FROM comments").get();
   const works = db.prepare("SELECT COUNT(DISTINCT work_title) AS total FROM comments").get();
-  const replied = db.prepare("SELECT COUNT(*) AS total FROM comments WHERE reply_message IS NOT NULL AND reply_message != ''").get();
+  const replied = db
+    .prepare(
+      "SELECT COUNT(*) AS total FROM comments WHERE reply_message IS NOT NULL AND reply_message != ''"
+    )
+    .get();
   res.json({ totalComments: total.total, totalWorks: works.total, totalReplied: replied.total });
 });
 
 app.get("/api/works", (_req, res) => {
   const db = getDb();
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT
       work_title,
       COUNT(*) AS total,
@@ -33,7 +39,9 @@ app.get("/api/works", (_req, res) => {
     FROM comments
     GROUP BY work_title
     ORDER BY total DESC
-  `).all();
+  `
+    )
+    .all();
   res.json(rows);
 });
 
@@ -62,7 +70,11 @@ app.post("/api/comments", (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const countRow = db.prepare(`SELECT COUNT(*) AS total FROM comments ${where}`).get(...params);
-  const rows = db.prepare(`SELECT id, work_title, username, comment_text, reply_message, comment_time, reply_count FROM comments ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const rows = db
+    .prepare(
+      `SELECT id, work_title, username, comment_text, reply_message, comment_time, reply_count FROM comments ${where} ORDER BY id DESC LIMIT ? OFFSET ?`
+    )
+    .all(...params, limit, offset);
 
   res.json({ total: countRow.total, page, limit, comments: rows });
 });
@@ -83,8 +95,7 @@ app.get("/api/wordcloud", (_req, res) => {
  * @param {import('express').Request} req
  */
 function thinkingSessionOptions(req) {
-  const sessionKey =
-    typeof req.query.sessionKey === "string" ? req.query.sessionKey : undefined;
+  const sessionKey = typeof req.query.sessionKey === "string" ? req.query.sessionKey : undefined;
   const sessionsPath =
     typeof req.query.sessionsPath === "string" ? req.query.sessionsPath : undefined;
   return resolveOpenclawSessionFile({ sessionKey, sessionsPath });
@@ -112,10 +123,7 @@ app.get("/api/openclaw-thinking/history", async (req, res) => {
     res.status(400).json(resolved);
     return;
   }
-  const limit = Math.min(
-    2000,
-    Math.max(1, Number(req.query.limit) || 300)
-  );
+  const limit = Math.min(2000, Math.max(1, Number(req.query.limit) || 300));
   try {
     const events = await readHistory(resolved.sessionFile, { limit });
     res.json({ ...resolved, count: events.length, events });
@@ -1024,7 +1032,5 @@ app.get("/", (_req, res) => {
 app.listen(PORT, () => {
   console.log(`\n  DOUYIN // COMMENT TERMINAL`);
   console.log(`  http://localhost:${PORT}`);
-  console.log(
-    `  OpenClaw 思考流  GET /api/openclaw-thinking/status | /history | /stream\n`
-  );
+  console.log(`  OpenClaw 思考流  GET /api/openclaw-thinking/status | /history | /stream\n`);
 });

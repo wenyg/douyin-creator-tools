@@ -142,10 +142,7 @@ async function waitForWorksProgress(page, sideSheet, previousState, timeoutMs) {
       const works = await extractWorksFromSideSheet(sideSheet);
       const domCount = works.length;
       const fingerprint = getWorksFingerprint(works);
-      return (
-        domCount !== previousState.domCount ||
-        fingerprint !== previousState.fingerprint
-      );
+      return domCount !== previousState.domCount || fingerprint !== previousState.fingerprint;
     },
     150
   );
@@ -250,7 +247,8 @@ async function clickMarkedTargetWork(page, sideSheet, options, startedAt, select
       .then(() => "comment_filter_visible")
       .catch(() => null),
     page
-      .locator('[comment-item]').first()
+      .locator("[comment-item]")
+      .first()
       .waitFor({ state: "visible", timeout: fastReadyTimeoutMs })
       .then(() => "comment_item_visible")
       .catch(() => null),
@@ -349,7 +347,8 @@ async function fetchAllWorks(page, options) {
     );
   }
 
-  const domFallbackWorks = latestDomWorks.length > 0 ? latestDomWorks : await extractWorksFromSideSheet(sideSheet);
+  const domFallbackWorks =
+    latestDomWorks.length > 0 ? latestDomWorks : await extractWorksFromSideSheet(sideSheet);
   if (domFallbackWorks.length > 0) {
     return domFallbackWorks;
   }
