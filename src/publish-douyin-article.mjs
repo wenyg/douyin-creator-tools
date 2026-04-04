@@ -84,27 +84,46 @@ function parseArgs(argv) {
 }
 
 function readArticleInput(inputFile) {
+  const errors = [];
+
   if (!inputFile) {
-    throw new Error("Missing article input file. Usage: npm run article:publish -- article.json");
+    errors.push("缺少文章 JSON 文件参数。用法: npm run article:publish -- article.json");
+    return { errors };
   }
 
   if (!fs.existsSync(inputFile)) {
-    throw new Error(`Article JSON file does not exist: ${inputFile}`);
+    errors.push(`文件不存在: ${inputFile}`);
+    return { errors };
+  }
+
+  let rawContent;
+  try {
+    rawContent = fs.readFileSync(inputFile, "utf8");
+  } catch (error) {
+    errors.push(`无法读取文件: ${inputFile} (${error instanceof Error ? error.message : String(error)})`);
+    return { errors };
   }
 
   let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(inputFile, "utf8"));
+    parsed = JSON.parse(rawContent);
   } catch (error) {
-    throw new Error(
-      `Failed to parse article JSON at ${inputFile}: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
+    const msg = error instanceof Error ? error.message : String(error);
+    const posMatch = msg.match(/position\s+(\d+)/i);
+    let hint = msg;
+    if (posMatch) {
+      const pos = Number(posMatch[1]);
+      const before = rawContent.slice(Math.max(0, pos - 40), pos);
+      const after = rawContent.slice(pos, pos + 40);
+      hint = `${msg}\n    问题位置附近: ...${before}👉${after}...`;
+    }
+    errors.push(`JSON 解析失败: ${hint}`);
+    return { errors };
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Article JSON must be an object.");
+    errors.push("JSON 内容应为一个对象 {...}，不能是数组或其他类型");
+    return { errors };
   }
 
   const title = String(parsed.title ?? "").trim();
@@ -119,18 +138,27 @@ function readArticleInput(inputFile) {
         .slice(0, 5)
     : [];
 
-  if (!title || !content || !imagePath) {
-    throw new Error("Article JSON requires non-empty title, content, and imagePath.");
+  if (!title) errors.push("缺少 title（文章标题）");
+  if (!content) errors.push("缺少 content（文章正文）");
+  if (!imagePath) errors.push("缺少 imagePath（头图路径）");
+
+  if (errors.length > 0) {
+    return { errors };
+  }
+
+  const inputBaseDir = path.dirname(inputFile);
+  const absoluteImagePath = path.isAbsolute(imagePath)
+    ? imagePath
+    : path.resolve(inputBaseDir, imagePath);
+
+  if (!fs.existsSync(absoluteImagePath)) {
+    errors.push(`头图文件不存在: ${absoluteImagePath} (imagePath: "${imagePath}"，相对于 ${inputBaseDir})`);
+    return { errors };
   }
 
   return {
-    title,
-    subtitle,
-    content,
-    imagePath,
-    music,
-    tags,
-    inputBaseDir: path.dirname(inputFile)
+    errors: [],
+    data: { title, subtitle, content, imagePath, music, tags, inputBaseDir }
   };
 }
 
@@ -352,7 +380,16 @@ async function main() {
     return;
   }
 
-  const articleInput = readArticleInput(args.inputFile);
+  const { errors, data: articleInput } = readArticleInput(args.inputFile);
+  if (errors.length > 0) {
+    console.error("发布文章参数检查失败：");
+    for (const err of errors) {
+      console.error(`  ✗ ${err}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
   const { context, page } = await launchPersistentPage({
     userDataDir: args.profileDir,
     headless: args.headless,
@@ -367,6 +404,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });

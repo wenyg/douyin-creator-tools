@@ -27,7 +27,7 @@ function normalizeSelectedWorkHint(rawWork) {
 
 function normalizeReplyCommentsFileEntry(rawEntry, index) {
   if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
-    throw new Error(`reply comments item ${index + 1} must be an object`);
+    throw new Error(`第 ${index + 1} 条评论格式错误: 应为 JSON 对象，实际为 ${typeof rawEntry}`);
   }
 
   const username = normalizeUsername(String(rawEntry.username ?? ""));
@@ -40,7 +40,7 @@ function normalizeReplyCommentsFileEntry(rawEntry, index) {
   const replyMessage = String(rawEntry.replyMessage ?? "").trim();
 
   if (!username) {
-    throw new Error(`reply comments item ${index + 1} requires username`);
+    throw new Error(`第 ${index + 1} 条评论缺少 username 字段`);
   }
 
   return {
@@ -52,18 +52,82 @@ function normalizeReplyCommentsFileEntry(rawEntry, index) {
   };
 }
 
+function tryRepairJson(raw) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\" && inString) {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      if (!inString) {
+        inString = true;
+        result += ch;
+      } else {
+        const rest = raw.slice(i + 1).trimStart();
+        const next = rest[0];
+        if (
+          next === ":" ||
+          next === "," ||
+          next === "}" ||
+          next === "]" ||
+          next === undefined
+        ) {
+          inString = false;
+          result += ch;
+        } else {
+          result += '\\"';
+        }
+      }
+    } else {
+      result += ch;
+    }
+  }
+
+  return result;
+}
+
+function describeJsonParseError(rawContent, error) {
+  const msg = error instanceof Error ? error.message : String(error);
+  const posMatch = msg.match(/position\s+(\d+)/i);
+  if (!posMatch) return msg;
+
+  const pos = Number(posMatch[1]);
+  const before = rawContent.slice(Math.max(0, pos - 40), pos);
+  const after = rawContent.slice(pos, pos + 40);
+  return `${msg}\n  问题位置附近: ...${before}👉${after}...\n  常见原因: replyMessage 中包含未转义的英文引号 "`;
+}
+
 export async function loadReplyCommentsFile(replyCommentsFile) {
   const rawContent = await fs.readFile(replyCommentsFile, "utf8");
   let parsed;
 
   try {
     parsed = JSON.parse(rawContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse reply comments JSON at ${replyCommentsFile}: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
+  } catch (originalError) {
+    try {
+      parsed = JSON.parse(tryRepairJson(rawContent));
+      console.warn(
+        `[warn] JSON 文件包含未转义的引号，已自动修复: ${replyCommentsFile}`
+      );
+    } catch (_repairError) {
+      throw new Error(
+        `JSON 解析失败: ${replyCommentsFile}\n  ${describeJsonParseError(rawContent, originalError)}`
+      );
+    }
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
