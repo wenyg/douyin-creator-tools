@@ -70,19 +70,58 @@ export function listMatchingUsernames(db, pattern) {
 }
 
 /**
+ * 获取最近 N 个作品的标题列表（按最大 id 降序）。
+ *
+ * @param {import("better-sqlite3").Database} db
+ * @param {number} n
+ * @returns {string[]}
+ */
+function getRecentWorkTitles(db, n) {
+  return db
+    .prepare(
+      `
+    SELECT work_title
+    FROM comments
+    GROUP BY work_title
+    ORDER BY MAX(id) DESC
+    LIMIT ?
+  `
+    )
+    .all(n)
+    .map((r) => r.work_title);
+}
+
+/**
  * 全局跨作品：按用户名聚合，评论正文经 normalizeText 后去重，
  * 取「不同评论条数」最多的前 N 名用户。
  *
+ * 当 recentWorks 指定时，仅统计在最近 M 个作品中出现过的用户。
+ *
  * @param {import("better-sqlite3").Database} db
- * @param {{ limit?: number }} opts
+ * @param {{ limit?: number, recentWorks?: number | null }} opts
  * @returns {{
  *   limit: number,
  *   dedupe: string,
+ *   recentWorks: number | null,
  *   top: Array<{ username: string, commentCount: number, comments: Array<{ commentText: string }> }>
  * }}
  */
 export function getTopCommenters(db, opts = {}) {
   const limit = Math.min(200, Math.max(1, Number(opts.limit) || 10));
+  const recentWorks = opts.recentWorks ? Math.max(1, Number(opts.recentWorks)) : null;
+
+  let activeUsers = null;
+  if (recentWorks) {
+    const titles = getRecentWorkTitles(db, recentWorks);
+    if (titles.length === 0) {
+      return { limit, dedupe: DEDUPE_LABEL, recentWorks, top: [] };
+    }
+    const placeholders = titles.map(() => "?").join(",");
+    const activeRows = db
+      .prepare(`SELECT DISTINCT username FROM comments WHERE work_title IN (${placeholders})`)
+      .all(...titles);
+    activeUsers = new Set(activeRows.map((r) => r.username));
+  }
 
   const rows = db
     .prepare(
@@ -98,9 +137,8 @@ export function getTopCommenters(db, opts = {}) {
   const byUser = new Map();
   for (const row of rows) {
     const username = String(row.username ?? "").trim();
-    if (!username) {
-      continue;
-    }
+    if (!username) continue;
+    if (activeUsers && !activeUsers.has(username)) continue;
     if (!byUser.has(username)) {
       byUser.set(username, []);
     }
@@ -123,5 +161,5 @@ export function getTopCommenters(db, opts = {}) {
     )
     .slice(0, limit);
 
-  return { limit, dedupe: DEDUPE_LABEL, top };
+  return { limit, dedupe: DEDUPE_LABEL, recentWorks, top };
 }

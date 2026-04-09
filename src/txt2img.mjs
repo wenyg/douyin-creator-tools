@@ -7,7 +7,7 @@
  */
 
 import { createHmac, createHash } from "node:crypto";
-import { writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -185,14 +185,37 @@ async function saveImageFromResponse(respJson, outPath) {
   return null;
 }
 
+function hasBase64Data(json) {
+  const data = normalizeDataDict(json);
+  return extractBase64List(data).length > 0;
+}
+
+function printResponseJson(json) {
+  if (hasBase64Data(json)) {
+    console.error("（响应含 base64 图片数据，省略完整 JSON）");
+  } else {
+    console.error(JSON.stringify(json, null, 2));
+  }
+}
+
 // ─── CLI ─────────────────────────────────────────────────────
 
-function cli() {
+async function loadJsonInput(jsonPath) {
+  const raw = await readFile(resolve(jsonPath), "utf-8");
+  const data = JSON.parse(raw);
+  if (!data || typeof data !== "object") {
+    throw new Error(`JSON 文件内容无效: ${jsonPath}`);
+  }
+  return data;
+}
+
+async function cli() {
   const { values } = parseArgs({
     options: {
       prompt:      { type: "string" },
-      width:       { type: "string", default: "1328" },
-      height:      { type: "string", default: "1328" },
+      json:        { type: "string" },
+      width:       { type: "string", default: "1440" },
+      height:      { type: "string", default: "2560" },
       scale:       { type: "string", default: "2.5" },
       seed:        { type: "string", default: "-1" },
       out:         { type: "string" },
@@ -202,25 +225,31 @@ function cli() {
     strict: true,
   });
 
-  if (!values.prompt) {
-    console.error("错误: --prompt 参数为必填项");
+  let jsonData = {};
+  if (values.json) {
+    jsonData = await loadJsonInput(values.json);
+  }
+
+  const prompt = values.prompt || jsonData.prompt;
+  if (!prompt) {
+    console.error("错误: 需要通过 --prompt 或 --json 提供提示词");
     process.exit(1);
   }
 
   return {
-    prompt: values.prompt,
-    width: Number(values.width),
-    height: Number(values.height),
-    scale: Number(values.scale),
-    seed: Number(values.seed),
-    out: values.out ? resolve(values.out) : defaultOutPath(),
-    logoText: values["logo-text"],
-    reqKey: values["req-key"],
+    prompt,
+    width: Number(values.prompt ? values.width : (jsonData.width ?? values.width)),
+    height: Number(values.prompt ? values.height : (jsonData.height ?? values.height)),
+    scale: Number(values.prompt ? values.scale : (jsonData.scale ?? values.scale)),
+    seed: Number(values.prompt ? values.seed : (jsonData.seed ?? values.seed)),
+    out: values.out ? resolve(values.out) : (jsonData.out ? resolve(jsonData.out) : defaultOutPath()),
+    logoText: values["logo-text"] || jsonData.logoText || "",
+    reqKey: values["req-key"] || jsonData.reqKey || REQ_KEY_DEFAULT,
   };
 }
 
 async function main() {
-  const args = cli();
+  const args = await cli();
 
   const accessKey = process.env.VOLC_ACCESS_KEY || process.env.VOLCENGINE_ACCESS_KEY;
   const secretKey = process.env.VOLC_SECRET_KEY || process.env.VOLCENGINE_SECRET_KEY;
@@ -267,7 +296,7 @@ async function main() {
 
   const errMsg = responseErrorMessage(respJson);
   if (res.status !== 200 || errMsg) {
-    console.error(JSON.stringify(respJson, null, 2));
+    printResponseJson(respJson);
     if (errMsg) console.error(`接口错误: ${errMsg}`);
     else if (res.status !== 200) console.error(`HTTP ${res.status}（响应体见上）`);
     process.exit(1);
@@ -275,7 +304,7 @@ async function main() {
 
   const saved = await saveImageFromResponse(respJson, args.out);
   if (!saved) {
-    console.error(JSON.stringify(respJson, null, 2));
+    printResponseJson(respJson);
     console.error("未解析到图片 URL 或 base64，请对照接口文档检查返回 JSON。");
     process.exit(2);
   }

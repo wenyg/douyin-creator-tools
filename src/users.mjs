@@ -2,11 +2,12 @@
 /**
  * 用户评论视图：全库跨作品、正文去重，不输出作品信息。
  *
- *   npm run users                  # 默认等价于 --top --n 3
- *   npm run users -- --top --n 10
+ *   npm run users                        # 默认前 3 名
+ *   npm run users -- --top 10
+ *   npm run users -- --top 10 --recent 5 # 只看最近 5 个作品中活跃的用户
  *   npm run users -- --name 半山
  *
- * --top 与 --name 不可同时使用；--n 仅与排行模式搭配（默认 3）。
+ * --top 与 --name 不可同时使用；--recent 仅与排行模式搭配。
  */
 
 import process from "node:process";
@@ -22,14 +23,16 @@ function printHelp() {
   console.log(`
 用法：
   npm run users
-  npm run users -- --top [--n <数字>]
+  npm run users -- --top <数字>
+  npm run users -- --top <数字> --recent <作品数>
   npm run users -- --name <子串>
 
 说明：
-  · 默认：排行模式，前 3 名用户（等价 --top --n 3）
-  · --top：显式排行模式；--n 指定人数，默认 3，最大 200
+  · 默认：排行模式，前 3 名用户（等价 --top 3）
+  · --top N：排行模式，显示前 N 名用户（默认 3，最大 200）
+  · --recent M：只统计最近 M 个作品中出现过的用户（仅排行模式）
   · --name：按用户名子串匹配（不区分大小写），可命中多个用户
-  · --top / --name 二选一；--name 不可与 --n 同用
+  · --top / --name 二选一
   · 输出均为全作品去重后的评论正文，不含作品、日期、回复
 
   --json, -j     输出 JSON
@@ -41,6 +44,7 @@ function printHelp() {
  * @returns {{
  *   mode: 'top' | 'name',
  *   topN: number,
+ *   recentWorks: number | null,
  *   namePattern: string | null,
  *   json: boolean,
  *   help: boolean
@@ -48,13 +52,15 @@ function printHelp() {
  */
 function parseArgs(argv) {
   let topN = 3;
+  /** @type {number | null} */
+  let recentWorks = null;
   /** @type {string | null} */
   let namePattern = null;
   let json = false;
   let help = false;
   let explicitTop = false;
   let explicitName = false;
-  let sawN = false;
+  let sawRecent = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -68,14 +74,24 @@ function parseArgs(argv) {
     }
     if (a === "--top") {
       explicitTop = true;
+      const next = argv[i + 1];
+      if (next && !next.startsWith("--")) {
+        const v = Number(next);
+        if (Number.isFinite(v) && v > 0) {
+          topN = v;
+          i += 1;
+        }
+      }
       continue;
     }
-    if (a === "--n" || a === "-n") {
-      sawN = true;
+    if (a === "--recent") {
+      sawRecent = true;
       const v = Number(argv[i + 1]);
       i += 1;
       if (Number.isFinite(v) && v > 0) {
-        topN = v;
+        recentWorks = v;
+      } else {
+        throw new Error("--recent 需要一个正整数参数");
       }
       continue;
     }
@@ -91,18 +107,18 @@ function parseArgs(argv) {
   if (explicitTop && explicitName) {
     throw new Error("不能同时使用 --top 与 --name");
   }
-  if (explicitName && sawN) {
-    throw new Error("--n 仅可与排行模式搭配，不能与 --name 同用");
+  if (explicitName && sawRecent) {
+    throw new Error("--recent 仅可与排行模式搭配，不能与 --name 同用");
   }
 
   const mode = explicitName ? "name" : "top";
 
-  return { mode, topN, namePattern, json, help };
+  return { mode, topN, recentWorks, namePattern, json, help };
 }
 
 /** @param {Array<{ username: string, commentCount: number, comments: Array<{ commentText: string }> }>} users */
-function printUsersText(users, { ranked }) {
-  console.log(`\n用户评论 · 全库去重（${DEDUPE_LABEL}）${ranked ? " · 排行" : " · 按名匹配"}\n`);
+function printUsersText(users, { ranked, extraTag = "" }) {
+  console.log(`\n用户评论 · 全库去重（${DEDUPE_LABEL}）${ranked ? " · 排行" : " · 按名匹配"}${extraTag}\n`);
   console.log("─".repeat(72));
 
   let rank = 0;
@@ -188,12 +204,17 @@ function main() {
     }
 
     const limit = Math.min(200, Math.max(1, parsed.topN));
-    const payload = getTopCommenters(db, { limit });
+    const payload = getTopCommenters(db, { limit, recentWorks: parsed.recentWorks });
 
     if (parsed.json) {
-      console.log(JSON.stringify({ mode: "top", dedupe: payload.dedupe, limit: payload.limit, top: payload.top }, null, 2));
+      const out = { mode: "top", dedupe: payload.dedupe, limit: payload.limit, top: payload.top };
+      if (payload.recentWorks) out.recentWorks = payload.recentWorks;
+      console.log(JSON.stringify(out, null, 2));
     } else {
-      printUsersText(payload.top, { ranked: true });
+      const tag = payload.recentWorks
+        ? ` · 最近 ${payload.recentWorks} 个作品`
+        : "";
+      printUsersText(payload.top, { ranked: true, extraTag: tag });
     }
   } finally {
     closeDb();
