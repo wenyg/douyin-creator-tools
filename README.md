@@ -11,6 +11,7 @@
 | `npm run comments:export`     | 导出未回复评论              |
 | `npm run comments:reply`      | 批量回复评论                |
 | `npm run article:publish`     | 发布图文文章                |
+| `npm run imagetext:publish`   | 发布图文（多图）            |
 | `npm run view`                | 手动打开创作者中心页面        |
 
 ## 环境要求
@@ -113,6 +114,30 @@ npm run comments:reply -- comments.json
 
 ```bash
 npm run article:publish -- article.json
+```
+
+## 发布图文（多图）
+
+准备一个 JSON 文件，例如 `imagetext.json`：
+
+```json
+{
+  "imagePaths": ["./photo1.jpg", "./photo2.jpg"],
+  "title": "作品标题",
+  "description": "作品描述",
+  "music": "星际穿越"
+}
+```
+- `imagePaths`（必填）：图片路径数组，最多 35 张，支持 jpg/jpeg/png/webp 格式
+- `title`（可选）：作品标题，最多 20 字
+- `description`（可选）：作品描述，最多 1000 字
+- `music`（可选）：配乐名称
+- 相对路径按 JSON 文件所在目录解析
+
+执行：
+
+```bash
+npm run imagetext:publish -- imagetext.json
 ```
 
 ## 说明

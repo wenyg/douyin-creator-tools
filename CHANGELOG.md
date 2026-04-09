@@ -2,6 +2,12 @@
 
 ## 2026-04-09
 
+### 发布图文
+
+- 新增 `npm run imagetext:publish`（`src/publish-douyin-imagetext.mjs`），多图图文发布；默认页 `content/upload?default-tab=3`；JSON 示例 `example/publish_imagetext.json`
+- 填写描述：在「添加作品标题」输入后按 Tab 切到描述再输入，避免占位符非标准 input 导致定位失败
+- 选择配乐：页面上有两处「选择音乐」文案，点击 `getByText("选择音乐").last()` 打开侧栏，再按与发布文章一致的搜索与「使用」流程
+
 ### 评论导出
 
 - 兼容旧作品评论页没有"全部评论/未回复/已回复"下拉框的情况

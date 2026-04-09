@@ -1,0 +1,44 @@
+---
+description: 项目地图、协作流程与文档约定（抖音创作者中心 Playwright 工具）
+alwaysApply: true
+---
+
+# douyin-creator-tools 项目上下文
+
+## AI 协作流程（必须遵守）
+
+1. **改代码前先对齐方案**：涉及非琐碎修改时，先向用户说明拟改方案、涉及文件与步骤，**待用户确认后再动手**。
+2. **改完同步文档**：行为、CLI、JSON 示例或用户可见输出有变化时，更新对应说明（优先 `README.md`；若新增示例则维护 `example/`）。
+3. **提交前更新变更记录**：有代码或用户可见行为变更时，在 `CHANGELOG.md` 按现有风格追加条目（按日期分节、按功能分组、要点列表）。
+
+## 功能 ↔ 入口脚本（改功能时优先从这里找）
+
+| `npm run …` | 入口文件 | 备注 |
+|-------------|----------|------|
+| `auth` | `src/auth-douyin.mjs` | 扫码登录、保存 `.playwright/douyin-profile` |
+| `view` | `src/open-douyin-view.mjs` | 打开创作者中心页面 |
+| `works` | `src/list-douyin-works.mjs` | 作品列表 |
+| `comments:export` | `src/export-douyin-comments.mjs` | 单作品导出未回复评论 |
+| `comments:export-all` | `src/export-all-douyin-comments.mjs` | 批量导出 |
+| `comments:reply` | `src/reply-douyin-comments.mjs` | 按 JSON 批量回复 |
+| `article:publish` | `src/publish-douyin-article.mjs` | 图文文章；示例 `example/publish_article.json` |
+| `imagetext:publish` | `src/publish-douyin-imagetext.mjs` | 多图图文；示例 `example/publish_imagetext.json` |
+| `server` | `src/server.mjs` | 本地 HTTP 服务 |
+| `wordcloud` | `src/compute-wordcloud.mjs` | 词云 |
+| `txt2img` | `src/txt2img.mjs` | 文生图相关 |
+| `users` | `src/users.mjs` | 用户相关 CLI |
+
+## 共享与底层（多处会动到）
+
+- **浏览器与会话**：`src/douyin-browser.mjs`；登录态目录 `.playwright/douyin-profile`（见 `README.md`「说明」）。
+- **CLI 公共选项**：`src/cli-options.mjs`。
+- **评论流程**：`src/comment-workflow.mjs`；`src/lib/comment-*.mjs`、`reply-flow.mjs`、`comment-page.mjs`、`comment-snapshot.mjs` 等。
+- **作品面板**：`src/lib/works-panel.mjs`。
+- **数据存储**：`src/lib/db.mjs`、`db-ops.mjs`、`result-store.mjs`。
+
+## 文档与 Changelog 习惯
+
+- **用户向说明**：以 `README.md` 的「功能」表格与后续章节为准；新子命令或参数变更要同步表格与示例命令。
+- **JSON 契约**：若输入 JSON 字段增删改，更新 `example/` 下对应示例及 `README` 中的字段说明。
+- **CHANGELOG.md**：新节用 `## YYYY-MM-DD`，下按「### 功能名」分组，用 `-` 列出可读的改动说明（与历史条目风格一致）。
+- **更新**: 每次更新时,要更新配套的文档,包括本规则
