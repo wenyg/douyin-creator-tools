@@ -83,6 +83,8 @@ comments.json 输出示例：
 npm run comments:reply -- comments.json
 ```
 
+- `replyMessage` 最多 **400 个字符**, 汉字、标点、英文、空格均按 1 个字符计
+
 ## 发布文章
 
 准备一个 JSON 文件，例如 `article.json`：

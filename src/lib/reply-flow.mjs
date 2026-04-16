@@ -17,6 +17,21 @@ import {
 } from "./comment-ops.mjs";
 import { extractCommentSnapshot } from "./comment-snapshot.mjs";
 
+/** 与平台常见限制一致：按 Unicode 码点计数字符（汉字、标点、字母、空格各计 1），超出则截断 */
+const MAX_REPLY_MESSAGE_CHARS = 400;
+
+function truncateReplyMessage(text) {
+  const s = text == null ? "" : String(text);
+  const codePoints = [...s];
+  if (codePoints.length <= MAX_REPLY_MESSAGE_CHARS) {
+    return { text: s, truncated: false };
+  }
+  return {
+    text: codePoints.slice(0, MAX_REPLY_MESSAGE_CHARS).join(""),
+    truncated: true
+  };
+}
+
 function buildVisibleUsernameCounts(snapshot, processedSignatures) {
   const counts = new Map();
 
@@ -146,8 +161,8 @@ function getNextReplyTarget(snapshot, options, processedSignatures, processedPla
   return null;
 }
 
-async function inspectCommentActions(commentLocator, intendedReplyMessage = "") {
-  return commentLocator.evaluate((root, replyMessage) => {
+async function inspectCommentActions(commentLocator) {
+  return commentLocator.evaluate((root) => {
     const normalize = (value = "") => value.replace(/\s+/g, " ").trim();
 
     for (const marked of root.querySelectorAll("[data-codex-toggle-action]")) {
@@ -186,7 +201,7 @@ async function inspectCommentActions(commentLocator, intendedReplyMessage = "") 
       editableValues,
       textPreview: rootText.slice(0, 240)
     };
-  }, intendedReplyMessage);
+  });
 }
 
 async function waitForReplySendReady(page, commentLocator, timeoutMs, options = null) {
@@ -229,11 +244,23 @@ function isResolvedReplyStatus(status) {
 }
 
 async function safeReplyToComment(page, commentLocator, comment, options) {
+  const { text: replyText, truncated: replyMessageTruncated } = truncateReplyMessage(
+    options.replyMessage ?? ""
+  );
+  if (replyMessageTruncated) {
+    logReplyFilterDebug("reply message truncated to max length", {
+      maxChars: MAX_REPLY_MESSAGE_CHARS,
+      originalCodePointCount: [...String(options.replyMessage ?? "")].length
+    });
+  }
+
   const result = {
     username: comment.username,
     commentText: comment.commentText,
     publishText: comment.publishText,
-    status: "pending"
+    status: "pending",
+    appliedReplyMessage: replyText,
+    replyMessageTruncated
   };
   let stage = "start";
 
@@ -244,7 +271,7 @@ async function safeReplyToComment(page, commentLocator, comment, options) {
       publishText: comment.publishText
     });
 
-    let actionState = await inspectCommentActions(commentLocator, options.replyMessage);
+    let actionState = await inspectCommentActions(commentLocator);
     logReplyFilterDebug("initial comment action state", {
       username: comment.username,
       commentText: comment.commentText,
@@ -256,7 +283,7 @@ async function safeReplyToComment(page, commentLocator, comment, options) {
       const toggleButton = commentLocator.locator('[data-codex-toggle-action="true"]').first();
       await toggleButton.click();
       await page.waitForTimeout(Math.min(1000, options.replySettleMs));
-      actionState = await inspectCommentActions(commentLocator, options.replyMessage);
+      actionState = await inspectCommentActions(commentLocator);
       logReplyFilterDebug("action state after expanding replies", {
         username: comment.username,
         commentText: comment.commentText,
@@ -283,7 +310,7 @@ async function safeReplyToComment(page, commentLocator, comment, options) {
     });
     stage = "type_reply";
     await inputBox.click();
-    await inputBox.type(options.replyMessage, {
+    await inputBox.type(replyText, {
       delay: options.replyTypeDelayMs
     });
 

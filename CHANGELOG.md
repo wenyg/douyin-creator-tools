@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-16
+
+### 回复评论
+
+- 回复正文按 Unicode 字符计最长 400，超出自动截断；结果中写入 `appliedReplyMessage`、`replyMessageTruncated`
+- 默认打字间隔由 100ms 调整为 50ms/字符，减轻长回复在单次操作超时内未完成输入的情况
+
 ## 2026-04-13
 
 ### JSON 解析
