@@ -40,6 +40,16 @@ export async function extractCommentSnapshot(page) {
       return t;
     };
 
+    const extractImageUrls = (container) => {
+      if (!(container instanceof HTMLElement)) return [];
+      const imgs = Array.from(
+        container.querySelectorAll("img.douyin-creator-interactive-image-img")
+      );
+      return imgs
+        .map((img) => (img.getAttribute("src") || "").trim())
+        .filter((src) => src.length > 0 && src.startsWith("http"));
+    };
+
     const parseStructuredEntry = (rawLines, order) => {
       const lines = rawLines.filter((line) => !isNoiseLine(line));
       if (lines.length < 2) {
@@ -124,16 +134,17 @@ export async function extractCommentSnapshot(page) {
         }
 
         if (username && commentText) {
-          return {
-            entry: {
-              username,
-              commentText,
-              publishText,
-              consumedLineCount: 0,
-              order,
-              signature: [username, commentText, publishText].map(normalize).join("|")
-            }
+          const imageUrls = extractImageUrls(block);
+          const entry = {
+            username,
+            commentText,
+            publishText,
+            consumedLineCount: 0,
+            order,
+            signature: [username, commentText, publishText].map(normalize).join("|")
           };
+          if (imageUrls.length > 0) entry.imageUrls = imageUrls;
+          return { entry };
         }
       }
 
@@ -202,16 +213,17 @@ export async function extractCommentSnapshot(page) {
         return null;
       }
 
-      return {
-        entry: {
-          username,
-          commentText,
-          publishText,
-          consumedLineCount: 0,
-          order,
-          signature: [username, commentText, publishText].map(normalize).join("|")
-        }
+      const imageUrls = extractImageUrls(block);
+      const entry = {
+        username,
+        commentText,
+        publishText,
+        consumedLineCount: 0,
+        order,
+        signature: [username, commentText, publishText].map(normalize).join("|")
       };
+      if (imageUrls.length > 0) entry.imageUrls = imageUrls;
+      return { entry };
     };
 
     for (const marked of root.querySelectorAll("[data-codex-comment-block]")) {
@@ -316,18 +328,22 @@ export async function extractCommentSnapshot(page) {
           container.setAttribute("data-codex-comment-block", String(i));
         }
 
+        const imageUrls = extractImageUrls(container);
+        const entry = {
+          username,
+          commentText,
+          publishText,
+          consumedLineCount: 0,
+          order: i,
+          signature
+        };
+        if (imageUrls.length > 0) entry.imageUrls = imageUrls;
+
         blocks.push({
           domIndex: i,
           left: Number.isFinite(rect?.left) ? rect.left : 0,
           top: Number.isFinite(rect?.top) ? rect.top : i,
-          entry: {
-            username,
-            commentText,
-            publishText,
-            consumedLineCount: 0,
-            order: i,
-            signature
-          }
+          entry
         });
       }
 
@@ -433,14 +449,18 @@ export async function extractCommentSnapshot(page) {
         return;
       }
 
-      comments.push({
+      const flushed = {
         domIndex: currentMainComment.domIndex,
         username: currentMainComment.username,
         commentText: currentMainComment.commentText,
         publishText: currentMainComment.publishText,
         signature: currentMainComment.signature,
         order: currentMainComment.order
-      });
+      };
+      if (currentMainComment.imageUrls?.length > 0) {
+        flushed.imageUrls = currentMainComment.imageUrls;
+      }
+      comments.push(flushed);
 
       currentMainComment = null;
     };
@@ -462,6 +482,7 @@ export async function extractCommentSnapshot(page) {
           commentText: entry.commentText,
           publishText: entry.publishText,
           signature: entry.signature,
+          imageUrls: entry.imageUrls,
           order: block.domIndex
         };
         continue;
@@ -488,6 +509,11 @@ export function addCommentsFromSnapshot(commentsBySignature, snapshot) {
       continue;
     }
 
+    const mergedImageUrls =
+      (comment.imageUrls?.length ?? 0) >= (existingComment.imageUrls?.length ?? 0)
+        ? comment.imageUrls
+        : existingComment.imageUrls;
+
     commentsBySignature.set(comment.signature, {
       ...existingComment,
       ...comment,
@@ -496,6 +522,7 @@ export function addCommentsFromSnapshot(commentsBySignature, snapshot) {
         comment.publishText.length >= (existingComment.publishText ?? "").length
           ? comment.publishText
           : existingComment.publishText,
+      imageUrls: mergedImageUrls,
       order:
         typeof existingComment.order === "number" && typeof comment.order === "number"
           ? Math.min(existingComment.order, comment.order)

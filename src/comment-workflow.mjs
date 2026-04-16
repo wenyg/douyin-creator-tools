@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import {
   DEFAULT_COMMENT_PAGE_URL,
@@ -75,6 +77,70 @@ function resolveReplyFlowTimeout(replyLimit, replyPlanCount) {
       REPLY_FLOW_TIMEOUT_BUFFER_MS + targetReplyCount * REPLY_FLOW_TIMEOUT_PER_PLAN_MS
     )
   );
+}
+
+function extractExtFromUrl(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const match = pathname.match(/\.(\w+)$/);
+    return match ? `.${match[1]}` : ".jpg";
+  } catch {
+    return ".jpg";
+  }
+}
+
+async function downloadCommentImages(comments, outputPath) {
+  const hasImages = comments.some((c) => c.imageUrls?.length > 0);
+  if (!hasImages) return;
+
+  const imageDir = path.resolve(path.dirname(outputPath), "comment-images");
+  await fs.promises.mkdir(imageDir, { recursive: true });
+
+  let downloaded = 0;
+  let failed = 0;
+
+  for (const comment of comments) {
+    if (!comment.imageUrls?.length) continue;
+    const savedPaths = [];
+
+    for (let i = 0; i < comment.imageUrls.length; i++) {
+      const url = comment.imageUrls[i];
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`[image] 下载失败 (HTTP ${response.status}): ${url.slice(0, 100)}…`);
+          failed += 1;
+          continue;
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const ext = extractExtFromUrl(url);
+        const hash = crypto.createHash("md5").update(url).digest("hex").slice(0, 8);
+        const safeName = comment.username.replace(/[^\w\u4e00-\u9fff-]/g, "_").slice(0, 20);
+        const filename = `${safeName}_${i}_${hash}${ext}`;
+        const filePath = path.resolve(imageDir, filename);
+
+        await fs.promises.writeFile(filePath, buffer);
+        savedPaths.push(filePath);
+        downloaded += 1;
+      } catch (err) {
+        console.warn(`[image] 下载异常: ${err?.message ?? err}`);
+        failed += 1;
+      }
+    }
+
+    delete comment.imageUrls;
+    if (savedPaths.length > 0) {
+      comment.imagePaths = savedPaths;
+    }
+  }
+
+  if (downloaded > 0) {
+    console.log(`[image] 已下载 ${downloaded} 张评论图片至 ${imageDir}`);
+  }
+  if (failed > 0) {
+    console.warn(`[image] ${failed} 张图片下载失败`);
+  }
 }
 
 async function openCommentSession(options = {}) {
@@ -201,6 +267,8 @@ export async function exportUnrepliedComments(options = {}) {
       console.log(`[db] 过滤掉 ${skipped} 条已回复过的评论`);
     }
 
+    await downloadCommentImages(exportComments, outputPath);
+
     await emitResult(
       {
         selectedWork: selectedWorkOutput,
@@ -211,6 +279,9 @@ export async function exportUnrepliedComments(options = {}) {
             commentText: comment.commentText,
             replyMessage: ""
           };
+          if (comment.imagePaths?.length > 0) {
+            entry.imagePaths = comment.imagePaths;
+          }
           if (includeHistory) {
             entry.history = historyMap.get(comment.username) ?? [];
           }
@@ -313,6 +384,8 @@ export async function exportAllComments(options = {}) {
       console.log(`[db] 过滤掉 ${skipped} 条已回复过的评论`);
     }
 
+    await downloadCommentImages(exportComments, outputPath);
+
     await emitResult(
       {
         selectedWork: selectedWorkOutput,
@@ -322,6 +395,9 @@ export async function exportAllComments(options = {}) {
             username: comment.username,
             commentText: comment.commentText
           };
+          if (comment.imagePaths?.length > 0) {
+            entry.imagePaths = comment.imagePaths;
+          }
           if (includeHistory) {
             entry.history = historyMap.get(comment.username) ?? [];
           }

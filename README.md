@@ -69,11 +69,14 @@ comments.json 输出示例：
     {
       "username": "用户A",
       "commentText": "评论内容",
+      "imagePaths": ["/absolute/path/to/comments-output/comment-images/用户A_0_ab12cd34.jpeg"],
       "replyMessage": ""
     }
   ]
 }
 ```
+
+- `imagePaths`（可选）：评论附带的图片会自动下载到输出目录下的 `comment-images/`，此字段存储绝对路径数组；无图片时不出现该字段
 
 ## 回复评论
 

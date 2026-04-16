@@ -2,6 +2,10 @@
 
 ## 2026-04-16
 
+### 评论导出
+
+- 导出评论时自动下载评论中的图片到 `comment-images/` 目录，JSON 中通过 `imagePaths` 字段存储图片的绝对路径；无图片的评论不受影响
+
 ### 回复评论
 
 - 回复正文按 Unicode 字符计最长 400，超出自动截断；结果中写入 `appliedReplyMessage`、`replyMessageTruncated`
