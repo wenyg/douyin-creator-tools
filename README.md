@@ -1,6 +1,7 @@
 # douyin-creator-tools
 
-> 本文件面向 OpenClaw Agent。Agent 读到此仓库时按本文件指引操作。
+> 本文件面向 OpenClaw, OpenClaw 读到此仓库时按本文件指引操作。
+> 碳基生物读到此文件时可以将本仓库地址丢给 OpenClaw, 让 OpenClaw 来加载此技能
 
 本仓库基于 Playwright 做抖音创作者中心自动化，供 OpenClaw 通过内置 skill 调度。覆盖三件事：获取作品列表、导出指定作品的未回复评论、按 JSON 批量回复评论。
 
@@ -21,7 +22,7 @@ git clone https://github.com/wenyg/douyin-creator-tools.git
 
 | 检查 | 补齐动作 |
 | --- | --- |
-| `node -v` >= v20 | 缺则停，让用户升级 Node |
+| `node -v` >= v22 | 缺则停，让用户升级 Node |
 | `node_modules/` 存在 | 缺则 `npm install` |
 | `npx playwright --version` 且 chromium 可用 | 缺或报错 missing chromium → `npx playwright install chromium` |
 | `.playwright/douyin-profile/` 存在 | 缺则停，**让用户本人执行 `npm run auth` 扫码**，Agent 不得替代 |
@@ -48,7 +49,3 @@ git clone https://github.com/wenyg/douyin-creator-tools.git
 - 页面结构变化导致命令失败时，让用户先人工核查，**不要改 `src/` 代码去"修复"**
 - 不生成引流、外链、联系方式、敏感词等违规内容
 - Agent 绝不替用户扫码登录
-
-## 变更记录
-
-`CHANGELOG.md`。
